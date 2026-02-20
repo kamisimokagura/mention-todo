@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  sourceChannel String   // GMAIL, DISCORD, SLACK, MANUAL
+  externalId    String?
+  senderName    String?
+  senderEmail   String?
+  subject       String?
+  body          String
+  sourceUrl     String?
+  embedding     String?  // JSON stringified float array
+  rawMetadata   String?  // JSON stringified metadata
+  receivedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  todos MessageToTodo[]
+
+  @@unique([sourceChannel, externalId])
+}
+
+model Todo {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("OPEN") // OPEN, IN_PROGRESS, DONE, ARCHIVED
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  deadline    DateTime?
+  embedding   String?  // JSON stringified float array
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages      MessageToTodo[]
+  bundleMembers BundleMember[]
+}
+
+model MessageToTodo {
+  id        String   @id @default(cuid())
+  messageId String
+  todoId    String
+  linkType  String   @default("MANUAL") // AUTO, MANUAL, SUGGESTED
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  todo    Todo    @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, todoId])
+}
+
+model Bundle {
+  id              String   @id @default(cuid())
+  status          String   @default("SUGGESTED") // SUGGESTED, CONFIRMED, REJECTED
+  similarityScore Float?
+  autoLabel       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  members BundleMember[]
+}
+
+model BundleMember {
+  id       String @id @default(cuid())
+  bundleId String
+  todoId   String
+
+  bundle Bundle @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  todo   Todo   @relation(fields: [todoId], references: [id], onDelete: Cascade)
+
+  @@unique([bundleId, todoId])
+}
+
+model Integration {
+  id           String   @id @default(cuid())
+  channel      String   @unique // GMAIL, DISCORD
+  enabled      Boolean  @default(false)
+  accessToken  String?
+  refreshToken String?
+  tokenExpiry  DateTime?
+  webhookUrl   String?
+  config       String?  // JSON stringified config
+  lastSyncAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SyncLog {
+  id           String   @id @default(cuid())
+  channel      String
+  status       String   // SUCCESS, PARTIAL, FAILED
+  messagesFound Int     @default(0)
+  messagesNew   Int     @default(0)
+  errorMessage  String?
+  startedAt    DateTime @default(now())
+  completedAt  DateTime?
+}
